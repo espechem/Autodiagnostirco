@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autodiagnóstico Energético</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: asistente de 3 pasos en una columna de 1040px; resultados en bandas
+   (veredicto con gauge y ahorro, KPIs, radar de madurez, facturas, oportunidades, plan de 3 meses). */
+:root{
+  --bg:#F1F4F1; --surface:#FFFFFF; --surface-2:#E8EEEA; --ink:#0E1B17; --muted:#586861; --line:#D4DCD7;
+  --accent:#0A6B57; --accent-ink:#FFFFFF; --accent-soft:#D5EBE3;
+  --amber:#C27E00; --amber-soft:#FBEBC4; --crit:#B42318; --ok:#2E7D4F; --blue:#35629E;
+  --l1:#B42318; --l2:#D9822B; --l3:#C9A227; --l4:#5FA36B; --l5:#0A6B57;
+  --f-display:'Bricolage Grotesque','Hanken Grotesk',system-ui,sans-serif;
+  --f-body:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1411; --surface:#121E1A; --surface-2:#1A2923; --ink:#E6EFEA; --muted:#93A59D; --line:#26372F;
+    --accent:#3CC9A6; --accent-ink:#06241C; --accent-soft:#12392F;
+    --amber:#F0B33A; --amber-soft:#3A2D0E; --crit:#F07167; --ok:#6BCB8B; --blue:#7FA8E6;
+    --l1:#F07167; --l2:#F0A04B; --l3:#E3C34F; --l4:#7CC98A; --l5:#3CC9A6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1411; --surface:#121E1A; --surface-2:#1A2923; --ink:#E6EFEA; --muted:#93A59D; --line:#26372F;
+  --accent:#3CC9A6; --accent-ink:#06241C; --accent-soft:#12392F;
+  --amber:#F0B33A; --amber-soft:#3A2D0E; --crit:#F07167; --ok:#6BCB8B; --blue:#7FA8E6;
+  --l1:#F07167; --l2:#F0A04B; --l3:#E3C34F; --l4:#7CC98A; --l5:#3CC9A6;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-block:0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);letter-spacing:-.02em;text-wrap:balance;margin:0;line-height:1.08}
+p{margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding-block:0 72px}
+.eyebrow{font:500 11.5px/1.2 var(--f-mono);text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* barra superior */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:18px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font:700 16px var(--f-display);letter-spacing:-.01em}
+.mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
+.mark svg{width:16px;height:16px;fill:var(--accent-ink)}
+.by{font:500 12px var(--f-mono);color:var(--muted);text-decoration:none}
+.by:hover{color:var(--accent)}
+
+/* hero */
+.hero{padding-block:38px 26px;display:grid;gap:16px;max-width:780px}
+.hero h1{font-size:clamp(34px,6.4vw,56px);font-weight:700}
+.hero p.sub{font-size:17px;color:var(--muted);max-width:60ch}
+.outs{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.outs li{font:500 12.5px var(--f-mono);padding:6px 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.hero-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.privacy{font-size:13px;color:var(--muted)}
+
+/* botones */
+.btn{appearance:none;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:600 15px var(--f-body);
+  padding:12px 20px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btn.sm{padding:8px 13px;font-size:13.5px}
+.btn.on-accent{background:var(--accent-ink);color:var(--accent);border-color:var(--accent-ink)}
+
+/* asistente */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:clamp(18px,3.2vw,32px)}
+.steps{display:flex;gap:8px;list-style:none;margin:0 0 26px;padding:0}
+.steps li{flex:1;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  color:var(--muted);font-weight:600;font-size:13.5px;min-width:0}
+.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:600 12px var(--f-mono);background:var(--surface-2)}
+.steps li[data-state="current"]{border-color:var(--accent);color:var(--ink)}
+.steps li[data-state="current"] .n{background:var(--accent);color:var(--accent-ink)}
+.steps li[data-state="done"] .n{background:var(--accent-soft);color:var(--accent)}
+@media (max-width:560px){.steps li:not([data-state="current"]) .lbl{display:none}.steps li:not([data-state="current"]){flex:0 0 auto}}
+.step h2{font-size:26px;margin-bottom:6px}
+.step .lead{color:var(--muted);margin-bottom:22px;max-width:62ch}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.field{display:grid;gap:6px;align-content:start;min-width:0}
+.field label,.q legend{font-weight:600;font-size:14px;padding:0}
+.opt{font:400 11.5px var(--f-mono);color:var(--muted);margin-left:6px;text-transform:uppercase;letter-spacing:.06em}
+.field input,.field select{width:100%;font:500 16px var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);
+  border-radius:10px;padding:11px 12px;min-width:0}
+.field input::placeholder{color:var(--muted);opacity:.7}
+.field input.filled{border-color:var(--accent);background:var(--accent-soft)}
+.inp{position:relative}
+.inp input{padding-right:58px}
+.unit{position:absolute;right:12px;top:50%;transform:translateY(-50%);font:500 12px var(--f-mono);color:var(--muted);pointer-events:none}
+.hint{font-size:12.5px;color:var(--muted)}
+.err{font-size:12.5px;color:var(--crit);font-weight:600;min-height:0}
+.err:empty{display:none}
+.q{border:0;padding:0;margin:22px 0 0;display:grid;gap:10px;min-width:0}
+.q .hint{margin-top:-4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.chip span{display:block;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--bg);font-weight:500;font-size:14.5px;line-height:1.3}
+.chip input:checked+span{border-color:var(--accent);background:var(--accent-soft);font-weight:700;box-shadow:inset 0 0 0 1px var(--accent)}
+.chip input:focus-visible+span{outline:3px solid var(--accent);outline-offset:2px}
+.qn{display:grid;gap:0}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:30px;flex-wrap:wrap}
+.invs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.inv{border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px;min-width:0;background:var(--surface)}
+.inv-h{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.inv-h h3{font-size:18px}
+.ing{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ing .full{grid-column:1/-1}
+.prev{display:grid;gap:8px}
+.prev img{width:100%;max-height:200px;object-fit:contain;object-position:top;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+.prev.zoom img{max-height:70vh;overflow:auto}
+.prev-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.prev-bar #pn1,.prev-bar #pn2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.prev-btns{display:flex;gap:6px}
+.note{font-size:13px;color:var(--muted);margin-top:14px;max-width:70ch}
+.contr{max-width:360px;margin-top:16px}
+
+/* resultados */
+#results{display:grid;gap:30px;padding-top:30px}
+.banner{background:var(--amber-soft);border:1px solid var(--amber);border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-weight:600}
+.sec-h{display:grid;gap:6px;margin-bottom:14px}
+.sec-h h2{font-size:clamp(22px,3.4vw,28px)}
+.sec-h p{color:var(--muted);max-width:66ch}
+.verdict{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:18px}
+@media (max-width:800px){.verdict{grid-template-columns:1fr}}
+.gcard{display:grid;place-items:center;align-content:center;gap:6px;text-align:center}
+.gcard svg{width:100%;max-width:320px;height:auto}
+.gscore{font:700 58px var(--f-display);fill:var(--ink)}
+.axl{font:600 12px var(--f-body);fill:var(--ink)}
+.axm{font:500 11px var(--f-mono);fill:var(--muted)}
+.lvl{font:700 13px var(--f-mono);text-transform:uppercase;letter-spacing:.08em}
+.vtext{display:grid;gap:14px;align-content:start}
+.vtext h1{font-size:clamp(26px,4.2vw,38px)}
+.save{display:grid;gap:4px}
+.save-num{font:700 clamp(30px,5.6vw,50px)/1.02 var(--f-display);color:var(--accent);letter-spacing:-.025em}
+.save-cap{color:var(--muted);font-size:14px}
+.cmp{display:grid;gap:8px;margin-top:4px}
+.cmp-r{display:grid;grid-template-columns:78px 1fr auto;gap:10px;align-items:center;font-size:13.5px}
+.cmp-r .k{font:500 11.5px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.trk{height:20px;background:var(--surface-2);border-radius:6px;overflow:hidden}
+.trk i{display:block;height:100%;border-radius:6px}
+.cmp-r b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--surface);display:grid;gap:4px;align-content:start}
+.kpi .v{font:700 26px/1.1 var(--f-display);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:13px;color:var(--muted)}
+.pill{display:inline-block;font:600 11.5px var(--f-mono);padding:2px 8px;border-radius:999px;background:var(--surface-2)}
+.pill.bad{background:var(--crit);color:#fff}
+.pill.good{background:var(--ok);color:#fff}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pill.bad,:root:not([data-theme="light"]) .pill.good{color:#06130E}}
+:root[data-theme="dark"] .pill.bad,:root[data-theme="dark"] .pill.good{color:#06130E}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:860px){.split{grid-template-columns:1fr}}
+.radar svg{width:100%;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12.5px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:18px;height:0;border-top:3px solid var(--accent);vertical-align:middle;margin-right:6px}
+.legend i.ref{border-top:3px dashed var(--amber)}
+.dims{display:grid;gap:14px;align-content:start}
+.dim{display:grid;gap:5px}
+.dim-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.dim-h b{font-size:14.5px}
+.dim-h span{font:500 12px var(--f-mono);color:var(--muted)}
+.dim .what{font-size:12.5px;color:var(--muted)}
+.tag{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.fast{background:var(--amber-soft);border-color:transparent;color:var(--ink)}
+.inv-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.ichart{display:grid;gap:6px;justify-items:center;text-align:center}
+.ichart svg{width:100%;max-width:300px;height:auto}
+.ichart h3{font-size:16px}
+.opps{display:grid;gap:10px}
+.opp{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.opp summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:34px 1fr auto;gap:6px 14px;align-items:start;padding:14px 16px}
+.opp summary::-webkit-details-marker{display:none}
+.rank{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:700 13px var(--f-mono);display:grid;place-items:center}
+.mid{display:grid;gap:8px;min-width:0}
+.mid .tt{font:700 17px/1.25 var(--f-display);letter-spacing:-.01em}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.obar{height:10px;background:var(--surface-2);border-radius:6px;position:relative;overflow:hidden}
+.obar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:var(--accent)}
+.obar i.ext{opacity:.35}
+.amt{text-align:right;font:700 15px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.amt small{display:block;font:500 11px var(--f-mono);color:var(--muted)}
+.chev{display:inline-block;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin-left:8px;transition:transform .15s}
+.opp[open] .chev{transform:rotate(-135deg)}
+@media (max-width:540px){.opp summary{grid-template-columns:34px 1fr}.amt{grid-column:2;text-align:left}}
+.obody{padding:0 16px 16px 64px;display:grid;gap:8px;color:var(--ink)}
+@media (max-width:540px){.obody{padding-left:16px}}
+.obody p+p{color:var(--muted)}
+.obody strong{color:var(--ink)}
+.plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;list-style:none;margin:0;padding:0}
+.plan li{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--surface);display:grid;gap:8px;align-content:start}
+.plan h3{font-size:18px}
+.plan p{color:var(--muted);font-size:14px}
+.cta{background:var(--accent);color:var(--accent-ink);border-radius:16px;padding:clamp(20px,3.6vw,34px);display:grid;gap:14px;justify-items:start}
+.cta h2{font-size:clamp(22px,3.6vw,30px)}
+.cta p{max-width:60ch;opacity:.92}
+.cta .row{display:flex;flex-wrap:wrap;gap:10px}
+.cta .btn.ghost{color:var(--accent-ink);border-color:var(--accent-ink);background:transparent}
+.method{font-size:13px;color:var(--muted)}
+.method summary{cursor:pointer;font-weight:600;color:var(--ink)}
+.method ul{margin:10px 0 0;padding-left:18px;display:grid;gap:4px}
+.fallback{width:100%;margin-top:10px;font:13px var(--f-mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:120px}
+.callout{border:1px dashed var(--line);border-radius:12px;padding:12px 16px;font-size:14px;color:var(--muted)}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;margin-top:6px;cursor:pointer}
+.consent input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--accent)}
+.sendbar{border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:14px;display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center;background:var(--surface)}
+.sendbar.ok{border-color:var(--ok)}
+.sendbar.err{border-color:var(--crit)}
+.sendbar b{font-weight:700}
+.sendbar a{color:var(--accent);font-weight:600}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+body{margin:0}img{max-width:100%}[hidden]{display:none!important}html{color-scheme:light}
+</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="brand"><span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M9.2 0 2 9h4.4L5.6 16 14 6.6H9.4z"/></svg></span>Autodiagnóstico Energético</div>
+  <a class="by" href="https://www.bairesenergia.com.ar" target="_blank" rel="noopener">Baires Energía</a>
+</header>
+
+<main class="wrap">
+  <section class="hero" id="hero">
+    <p class="eyebrow">Para empresas · 5 minutos · 2 facturas</p>
+    <h1>Medí qué tan madura es la gestión de tu energía y cuánto te cuesta no mejorarla</h1>
+    <p class="sub">Cargá los datos básicos de tu empresa y tus dos últimas facturas de electricidad. Recibís tu nivel de madurez energética, un mapa de debilidades y las oportunidades de ahorro ordenadas por plata por año.</p>
+    <ul class="outs" aria-label="Qué vas a obtener">
+      <li>Nivel de madurez 1 a 5</li>
+      <li>Ahorro estimado por año</li>
+      <li>Plan de 3 meses</li>
+    </ul>
+    <div class="hero-actions">
+      <button class="btn ghost" type="button" id="btnExample">Ver un ejemplo con datos de muestra</button>
+      <span class="privacy">El cálculo corre en tu navegador. Al generar tu diagnóstico, el resultado se envía a Baires Energía para que un ingeniero lo revise con vos.</span>
+    </div>
+  </section>
+
+  <section class="card" id="wizard" aria-label="Formulario de autodiagnóstico">
+    <ol class="steps" id="steps">
+      <li data-state="current"><span class="n">1</span><span class="lbl">Empresa</span></li>
+      <li data-state="todo"><span class="n">2</span><span class="lbl">Facturas</span></li>
+      <li data-state="todo"><span class="n">3</span><span class="lbl">Prácticas</span></li>
+    </ol>
+
+    <div class="step" id="step1" data-step="1">
+      <h2>Tu empresa</h2>
+      <p class="lead">Cuatro datos para calibrar el diagnóstico a tu rubro y a tu régimen de trabajo.</p>
+      <div class="grid2">
+        <div class="field">
+          <label for="name">Nombre de la empresa</label>
+          <input id="name" type="text" autocomplete="organization" maxlength="80">
+          <div class="err" id="e-name" role="alert"></div>
+        </div>
+        <div class="field">
+          <label for="sector">Rubro</label>
+          <select id="sector">
+            <option value="">Elegí una opción</option>
+            <option value="industria">Industria manufacturera</option>
+            <option value="alimentos">Alimentos, agro y frío</option>
+            <option value="comercio">Comercio y retail</option>
+            <option value="oficinas">Oficinas y servicios</option>
+            <option value="hospedaje">Salud, educación y hotelería</option>
+          </select>
+          <div class="err" id="e-sector" role="alert"></div>
+        </div>
+      </div>
+      <fieldset class="q">
+        <legend>¿Cómo opera tu planta u oficina?</legend>
+        <div class="chips">
+          <label class="chip"><input type="radio" name="shift" value="1"><span>1 turno diurno</span></label>
+          <label class="chip"><input type="radio" name="shift" value="2"><span>2 turnos</span></label>
+          <label class="chip"><input type="radio" name="shift" value="3"><span>3 turnos</span></label>
+          <label class="chip"><input type="radio" name="shift" value="24"><span>24 h, todos los días</span></label>
+        </div>
+        <div class="err" id="e-shift" role="alert"></div>
+      </fieldset>
+      <fieldset class="q">
+        <legend>¿Tenés techo o terreno libre para paneles solares?</legend>
+        <div class="chips">
+          <label class="chip"><input type="radio" name="roof" value="si"><span>Sí, bastante</span></label>
+          <label class="chip"><input type="radio" name="roof" value="poco"><span>Limitado</span></label>
+          <label class="chip"><input type="radio" name="roof" value="no"><span>No tengo</span></label>
+        </div>
+        <div class="err" id="e-roof" role="alert"></div>
+      </fieldset>
+      <div class="nav"><span></span><button class="btn" type="button" data-next="2">Siguiente: facturas</button></div>
+    </div>
+
+    <div class="step" id="step2" data-step="2" hidden>
+      <h2>Tus dos últimas facturas</h2>
+      <p class="lead">Solo cinco datos esenciales de cada una. Período, consumo y total son obligatorios; potencia y factor de potencia afinan el análisis si tu factura los informa.</p>
+      <div class="invs">
+        <div class="inv">
+          <div class="inv-h"><h3>Factura anterior</h3>
+            <div class="ai">
+              <label class="btn ghost sm" for="file1">Adjuntar factura</label>
+              <input id="file1" type="file" accept="image/*" hidden>
+            </div>
+          </div>
+          <div class="prev" id="prev1" hidden>
+            <img id="img1" alt="Factura adjunta, vista previa en tu navegador">
+            <div class="prev-bar"><span id="pn1"></span><span class="prev-btns"><button type="button" class="btn ghost sm" data-zoom="1">Ampliar</button><button type="button" class="btn ghost sm" data-clear="1">Quitar</button></span></div>
+          </div>
+          <div class="ing">
+            <div class="field full"><label for="per1">Período de consumo</label><input id="per1" type="month" placeholder="AAAA-MM"><div class="err" id="e-per1" role="alert"></div></div>
+            <div class="field"><label for="kwh1">Consumo</label><div class="inp"><input id="kwh1" type="text" inputmode="decimal" placeholder="61.200"><span class="unit">kWh</span></div><div class="err" id="e-kwh1" role="alert"></div></div>
+            <div class="field"><label for="amt1">Total a pagar</label><div class="inp"><input id="amt1" type="text" inputmode="decimal" placeholder="11.630.000"><span class="unit">$</span></div><div class="err" id="e-amt1" role="alert"></div></div>
+            <div class="field"><label for="kw1">Potencia máxima<span class="opt">opcional</span></label><div class="inp"><input id="kw1" type="text" inputmode="decimal" placeholder="230"><span class="unit">kW</span></div><div class="err" id="e-kw1" role="alert"></div></div>
+            <div class="field"><label for="cos1">Factor de potencia<span class="opt">opcional</span></label><div class="inp"><input id="cos1" type="text" inputmode="decimal" placeholder="0,88"><span class="unit">cos φ</span></div><div class="err" id="e-cos1" role="alert"></div></div>
+          </div>
+        </div>
+        <div class="inv">
+          <div class="inv-h"><h3>Última factura</h3>
+            <div class="ai">
+              <label class="btn ghost sm" for="file2">Adjuntar factura</label>
+              <input id="file2" type="file" accept="image/*" hidden>
+            </div>
+          </div>
+          <div class="prev" id="prev2" hidden>
+            <img id="img2" alt="Factura adjunta, vista previa en tu navegador">
+            <div class="prev-bar"><span id="pn2"></span><span class="prev-btns"><button type="button" class="btn ghost sm" data-zoom="2">Ampliar</button><button type="button" class="btn ghost sm" data-clear="2">Quitar</button></span></div>
+          </div>
+          <div class="ing">
+            <div class="field full"><label for="per2">Período de consumo</label><input id="per2" type="month" placeholder="AAAA-MM"><div class="err" id="e-per2" role="alert"></div></div>
+            <div class="field"><label for="kwh2">Consumo</label><div class="inp"><input id="kwh2" type="text" inputmode="decimal" placeholder="64.800"><span class="unit">kWh</span></div><div class="err" id="e-kwh2" role="alert"></div></div>
+            <div class="field"><label for="amt2">Total a pagar</label><div class="inp"><input id="amt2" type="text" inputmode="decimal" placeholder="12.820.000"><span class="unit">$</span></div><div class="err" id="e-amt2" role="alert"></div></div>
+            <div class="field"><label for="kw2">Potencia máxima<span class="opt">opcional</span></label><div class="inp"><input id="kw2" type="text" inputmode="decimal" placeholder="240"><span class="unit">kW</span></div><div class="err" id="e-kw2" role="alert"></div></div>
+            <div class="field"><label for="cos2">Factor de potencia<span class="opt">opcional</span></label><div class="inp"><input id="cos2" type="text" inputmode="decimal" placeholder="0,86"><span class="unit">cos φ</span></div><div class="err" id="e-cos2" role="alert"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="field contr">
+        <label for="contr">Potencia contratada<span class="opt">opcional</span></label>
+        <div class="inp"><input id="contr" type="text" inputmode="decimal" placeholder="340"><span class="unit">kW</span></div>
+        <div class="hint">Figura en la factura de las categorías con demanda de potencia (T2 y T3).</div>
+        <div class="err" id="e-contr" role="alert"></div>
+      </div>
+      <p class="note">Consumo es la energía total del período: si tu factura separa pico, resto y valle, sumalos. El total a pagar incluye impuestos.</p>
+      <p class="note">Podés adjuntar una foto o captura de cada factura para tenerla a la vista mientras tipeás los datos. La imagen no se lee ni se envía: queda solo en tu navegador y se descarta al cerrar la página.</p>
+      <div class="nav"><button class="btn ghost" type="button" data-prev="1">Volver</button><button class="btn" type="button" data-next="3">Siguiente: prácticas</button></div>
+    </div>
+
+    <div class="step" id="step3" data-step="3" hidden>
+      <h2>Cómo gestionás la energía hoy</h2>
+      <p class="lead">Siete preguntas, una respuesta cada una, y tus datos de contacto al final.</p>
+      <fieldset class="q"><legend>1. ¿Hay una persona responsable de la energía?</legend>
+        <div class="chips"><label class="chip"><input type="radio" name="q1" value="0"><span>Nadie en particular</span></label><label class="chip"><input type="radio" name="q1" value="1"><span>Alguien, sin metas</span></label><label class="chip"><input type="radio" name="q1" value="2"><span>Sí, con metas y seguimiento</span></label></div><div class="err" id="e-q1" role="alert"></div></fieldset>
+      <fieldset class="q"><legend>2. ¿Cómo seguís el consumo?</legend>
+        <div class="chips"><label class="chip"><input type="radio" name="q2" value="0"><span>Solo con la factura mensual</span></label><label class="chip"><input type="radio" name="q2" value="1"><span>Medidores por sector, lectura manual</span></label><label class="chip"><input type="radio" name="q2" value="2"><span>Monitoreo en línea con alarmas</span></label></div><div class="err" id="e-q2" role="alert"></div></fieldset>
+      <fieldset class="q"><legend>3. ¿Qué parte de la iluminación es LED?</legend>
+        <div class="chips"><label class="chip"><input type="radio" name="q3" value="0"><span>Menos de la mitad</span></label><label class="chip"><input type="radio" name="q3" value="1"><span>Más de la mitad</span></label><label class="chip"><input type="radio" name="q3" value="2"><span>Casi toda</span></label></div><div class="err" id="e-q3" role="alert"></div></fieldset>
+      <fieldset class="q"><legend>4. Motores, bombas y compresores con variador o alta eficiencia</legend>
+        <div class="chips"><label class="chip"><input type="radio" name="q4" value="0"><span>Pocos o ninguno</span></label><label class="chip"><input type="radio" name="q4" value="1"><span>Algunos</span></label><label class="chip"><input type="radio" name="q4" value="2"><span>La mayoría</span></label><label class="chip"><input type="radio" name="q4" value="na"><span>No tengo este tipo de equipos</span></label></div><div class="err" id="e-q4" role="alert"></div></fieldset>
+      <fieldset class="q"><legend>5. ¿Cómo es el mantenimiento de los equipos?</legend>
+        <div class="chips"><label class="chip"><input type="radio" name="q5" value="0"><span>Se arregla cuando falla</span></label><label class="chip"><input type="radio" name="q5" value="1"><span>Preventivo básico</span></label><label class="chip"><input type="radio" name="q5" value="2"><span>Plan con indicadores</span></label></div><div class="err" id="e-q5" role="alert"></div></fieldset>
+      <fieldset class="q"><legend>6. ¿Cuándo revisaste tu tarifa y tu potencia contratada?</legend>
+        <div class="chips"><label class="chip"><input type="radio" name="q6" value="0"><span>Nunca</span></label><label class="chip"><input type="radio" name="q6" value="1"><span>Hace más de 2 años</span></label><label class="chip"><input type="radio" name="q6" value="2"><span>En los últimos 2 años</span></label></div><div class="err" id="e-q6" role="alert"></div></fieldset>
+      <fieldset class="q"><legend>7. ¿Generás parte de tu propia energía?</legend>
+        <div class="chips"><label class="chip"><input type="radio" name="q7" value="0"><span>No, y no lo evalué</span></label><label class="chip"><input type="radio" name="q7" value="1"><span>Lo evalué o está en proyecto</span></label><label class="chip"><input type="radio" name="q7" value="2"><span>Sí, ya genero</span></label></div><div class="err" id="e-q7" role="alert"></div></fieldset>
+      <fieldset class="q">
+        <legend>8. ¿Con quién habla el ingeniero que revisa tu diagnóstico?</legend>
+        <div class="grid2">
+          <div class="field"><label for="cname">Tu nombre</label><input id="cname" type="text" autocomplete="name" maxlength="80"><div class="err" id="e-cname" role="alert"></div></div>
+          <div class="field"><label for="cmail">Email</label><input id="cmail" type="email" autocomplete="email" maxlength="120"><div class="err" id="e-cmail" role="alert"></div></div>
+          <div class="field"><label for="cphone">Teléfono<span class="opt">opcional</span></label><input id="cphone" type="tel" autocomplete="tel" maxlength="40"></div>
+        </div>
+        <label class="consent"><input type="checkbox" id="consent"><span>Acepto que Baires Energía reciba los datos de este formulario y mi diagnóstico para contactarme. No se usan para otro fin. La imagen de la factura nunca se envía.</span></label>
+        <div class="err" id="e-consent" role="alert"></div>
+      </fieldset>
+      <div class="nav"><button class="btn ghost" type="button" data-prev="2">Volver</button><button class="btn" type="button" id="btnGo">Generar y enviar mi diagnóstico</button></div>
+    </div>
+  </section>
+
+  <section id="results" hidden></section>
+</main>
+
+<script>
+(function(){
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s);};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));};
+var esc=function(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+var fmt=function(n,d){d=d||0;return new Intl.NumberFormat('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n);};
+var fin=function(n){return new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(n);};
+var clamp=function(x,a,b){return Math.max(a,Math.min(b,x));};
+var compact=function(n){var a=Math.abs(n);
+  if(a>=1e9)return '$ '+fmt(n/1e9,1)+' mil M';
+  if(a>=1e6)return '$ '+fmt(n/1e6,1)+' M';
+  if(a>=1e3)return '$ '+fmt(Math.round(n/1e3))+' mil';
+  return '$ '+fmt(Math.round(n));};
+var range=function(lo,hi){return compact(lo)+' – '+compact(hi);};
+var pct=function(x,d){return fmt(x*100,d||0)+'%';};
+
+function parseAR(v){
+  if(v==null)return NaN;
+  var s=String(v).trim().replace(/[^\d.,-]/g,'');
+  if(!s)return NaN;
+  if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.');
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
+  var n=parseFloat(s);
+  return isFinite(n)?n:NaN;
+}
+function normPeriod(v){
+  v=String(v||'').trim();var m,y,mo;
+  if((m=v.match(/^(\d{4})-(\d{1,2})$/))){y=+m[1];mo=+m[2];}
+  else if((m=v.match(/^(\d{1,2})[\/-](\d{4})$/))){mo=+m[1];y=+m[2];}
+  else return null;
+  if(mo<1||mo>12||y<2000||y>2100)return null;
+  return y+'-'+String(mo).padStart(2,'0');
+}
+var MONTHS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+var periodLabel=function(p){var a=p.split('-').map(Number);return MONTHS[a[1]-1]+' '+a[0];};
+var daysIn=function(p){var a=p.split('-').map(Number);return new Date(a[0],a[1],0).getDate();};
+var radio=function(n){var e=$('input[name="'+n+'"]:checked');return e?e.value:null;};
+var val=function(id){return $('#'+id).value;};
+
+/* ---------- tablas de referencia ---------- */
+var SHIFT={'1':{t:'un turno diurno',lf:.35,sol:.25},'2':{t:'dos turnos',lf:.55,sol:.20},'3':{t:'tres turnos',lf:.70,sol:.14},'24':{t:'las 24 horas',lf:.80,sol:.12}};
+var SECTOR={
+  industria:{n:'Industria manufacturera',L:.07,H:.05,M:.62},
+  alimentos:{n:'Alimentos, agro y frío',L:.06,H:.04,M:.65},
+  comercio:{n:'Comercio y retail',L:.30,H:.35,M:.10},
+  oficinas:{n:'Oficinas y servicios',L:.25,H:.40,M:.05},
+  hospedaje:{n:'Salud, educación y hotelería',L:.20,H:.40,M:.15}
+};
+var LEVELS=[
+  {n:1,name:'Reactivo',max:24,line:'La energía es hoy un gasto que se paga, no una variable que se gestiona. Cada mes la factura llega y nadie la discute.'},
+  {n:2,name:'Consciente',max:44,line:'Sabés que la energía pesa, pero te faltan medición y método para sostener el ahorro. Las mejoras dependen de la buena voluntad de alguien.'},
+  {n:3,name:'Organizado',max:64,line:'Tu base está armada. Lo que sigue es medir mejor y atacar las pérdidas más grandes con proyectos concretos y fechas.'},
+  {n:4,name:'Gestionado',max:82,line:'Gestionás bien. El margen que queda está en optimizar la contratación y sumar generación propia.'},
+  {n:5,name:'Estratégico',max:100,line:'Tu gestión es de referencia. El foco ahora es sostener resultados y certificarlos bajo ISO 50001.'}
+];
+var levelOf=function(s){s=Math.round(s);for(var i=0;i<LEVELS.length;i++){if(s<=LEVELS[i].max)return LEVELS[i];}return LEVELS[4];};
+var lvColor=function(s){return 'var(--l'+levelOf(s).n+')';};
+var WHAT={gestion:'Responsable y metas',medicion:'Seguimiento del consumo',tecnologia:'Iluminación y motores',mantenimiento:'Mantenimiento de equipos',contratacion:'Tarifa y potencia contratada',renovables:'Generación propia',demanda:'Factor de potencia y factor de carga'};
+
+/* ---------- lectura del formulario ---------- */
+function readInputs(){
+  var inv=[1,2].map(function(i){return {period:normPeriod(val('per'+i)),kwh:parseAR(val('kwh'+i)),amount:parseAR(val('amt'+i)),kw:parseAR(val('kw'+i)),cos:parseAR(val('cos'+i))};});
+  var q={};['q1','q2','q3','q4','q5','q6','q7'].forEach(function(k){q[k]=radio(k);});
+  return {contact:{name:val('cname').trim(),mail:val('cmail').trim(),phone:val('cphone').trim()},name:val('name').trim(),sector:val('sector'),shift:radio('shift'),roof:radio('roof'),contracted:parseAR(val('contr')),inv:inv,q:q};
+}
+
+/* ---------- motor de diagnóstico ---------- */
+function compute(d){
+  var inv=d.inv.slice().sort(function(a,b){return a.period<b.period?-1:a.period>b.period?1:0;}).map(function(x){
+    var o=Object.assign({},x);o.days=daysIn(x.period);o.unit=x.amount/x.kwh;o.perDay=x.kwh/o.days;return o;});
+  var sec=SECTOR[d.sector],sh=SHIFT[d.shift];
+  var kwhAvg=(inv[0].kwh+inv[1].kwh)/2,amtAvg=(inv[0].amount+inv[1].amount)/2,annual=amtAvg*12;
+  var unitVar=inv[1].unit/inv[0].unit-1,useVar=inv[1].perDay/inv[0].perDay-1;
+  var kws=inv.map(function(x){return x.kw;}).filter(Number.isFinite);
+  var kwMax=kws.length?Math.max.apply(null,kws):NaN;
+  var lfs=inv.filter(function(x){return Number.isFinite(x.kw);}).map(function(x){return x.kwh/(x.kw*x.days*24);});
+  var lf=lfs.length?lfs.reduce(function(a,b){return a+b;},0)/lfs.length:NaN;
+  var lfRatio=lf/sh.lf;
+  var coss=inv.map(function(x){return x.cos;}).filter(Number.isFinite);
+  var cos=coss.length?coss.reduce(function(a,b){return a+b;},0)/coss.length:NaN;
+  var util=(Number.isFinite(d.contracted)&&Number.isFinite(kwMax))?kwMax/d.contracted:NaN;
+
+  var v50=function(v){return (v==null||v==='na')?null:Number(v)*50;};
+  var avg=function(a){a=a.filter(function(x){return x!=null;});return a.length?a.reduce(function(p,c){return p+c;},0)/a.length:null;};
+  var utilScore=function(u){return u>1?clamp(100-(u-1)*400,0,100):(u>=.75?100:clamp((u-.35)/.40,0,1)*100);};
+  var cosScore=function(c){return clamp((c-.80)/.17,0,1)*100;};
+  var lfScore=function(r){return clamp((r-.4)/.6,0,1)*100;};
+
+  var dims=[
+    {k:'gestion',name:'Gestión',score:v50(d.q.q1),w:1.2},
+    {k:'medicion',name:'Medición',score:v50(d.q.q2),w:1.2},
+    {k:'tecnologia',name:'Tecnología',score:avg([v50(d.q.q3),v50(d.q.q4)]),w:1.2},
+    {k:'mantenimiento',name:'Mantenimiento',score:v50(d.q.q5),w:1},
+    {k:'contratacion',name:'Contratación',score:avg([v50(d.q.q6),Number.isFinite(util)?utilScore(util):null]),w:1.2},
+    {k:'renovables',name:'Renovables',score:v50(d.q.q7),w:.8}
+  ];
+  var dem=avg([Number.isFinite(cos)?cosScore(cos):null,Number.isFinite(lfRatio)?lfScore(lfRatio):null]);
+  if(dem!=null)dims.push({k:'demanda',name:'Calidad de demanda',score:dem,w:1.2});
+  var wsum=dims.reduce(function(p,x){return p+x.w;},0);
+  var score=Math.round(dims.reduce(function(p,x){return p+x.score*x.w;},0)/wsum);
+  dims.forEach(function(x){x.score=Math.round(x.score);});
+
+  /* oportunidades */
+  var opps=[];
+  var add=function(id,title,s,plazo,inversion,why,action){if(s>0.004)opps.push({id:id,title:title,s:s,plazo:plazo,inversion:inversion,why:why,action:action});};
+  if(Number.isFinite(cos)&&cos<.95){
+    add('fp','Corregir el factor de potencia',clamp((.95-cos)*.6,.01,.14),'Rápido','Inversión media',
+      'Tu factor de potencia promedia '+fmt(cos,2)+'. La normativa penaliza por debajo de 0,85 y el objetivo técnico sano es 0,95 o más. Todo lo que queda abajo lo pagás en recargos y en capacidad de instalación desperdiciada.',
+      'Medí la energía reactiva y colocá un banco de capacitores automático dimensionado en kVAr. El repago habitual es menor a un año.');
+  }
+  if(Number.isFinite(util)){
+    if(util<.75){
+      add('pot','Reducir la potencia contratada',Math.min(1-util/.85,.4)*.22,'Rápido','Sin inversión',
+        'Tu máximo registrado es '+fmt(kwMax)+' kW y contratás '+fmt(d.contracted)+' kW: usás '+pct(util)+' de lo que pagás. Cada kW que nunca consumís es plata que se va todos los meses.',
+        'Pedí a la distribuidora bajar la potencia contratada a unos '+fmt(Math.ceil(kwMax*1.15))+' kW (15% de margen) y verificá antes los picos de arranque.');
+    } else if(util>1){
+      add('pot','Evitar excesos de potencia',.03,'Rápido','Sin inversión',
+        'Tu demanda máxima ('+fmt(kwMax)+' kW) supera lo contratado ('+fmt(d.contracted)+' kW). Cada exceso se factura con penalidad.',
+        'Escalonar el arranque de motores grandes o ampliar la potencia contratada, lo que resulte más barato con tu perfil de carga.');
+    }
+  }
+  if(Number.isFinite(lfRatio)&&lfRatio<.85){
+    add('dem','Aplanar el perfil de demanda',Math.min((.85-lfRatio)*.12,.07),'Proyecto','Inversión baja',
+      'Tu factor de carga es '+fmt(lf,2)+' contra '+fmt(sh.lf,2)+' esperable para '+sh.t+'. Consumís poco y pedís mucha potencia en picos cortos: pagás una infraestructura que usás a medias.',
+      'Escalonar arranques, correr las cargas grandes fuera de las horas pico y fijar un límite de demanda con alarma.');
+  }
+  var big=(Number.isFinite(kwMax)&&kwMax>=300)||(!Number.isFinite(kwMax)&&kwhAvg>=108000);
+  if(big){
+    add('mem','Contratar tu energía en el MEM (GUDI)',.12,'Proyecto','Sin inversión',
+      (Number.isFinite(kwMax)?'Con '+fmt(kwMax)+' kW de demanda máxima':'Con '+fmt(kwhAvg)+' kWh por mes')+' superás el umbral de 300 kW para operar como Gran Usuario. Podés negociar precio y modalidad de compra en lugar de pagar la tarifa regulada.',
+      'Hacé un estudio comparativo de tu facturación actual contra contratos del Mercado a Término antes de tu próxima renovación.');
+  }
+  if(d.q.q7!=='2'&&d.roof!=='no'){
+    var f=sh.sol*(d.roof==='poco'?.6:1);
+    add('sol','Autogenerar con paneles solares',f*.65,'Proyecto','Inversión alta',
+      'Operás '+sh.t+' y tenés '+(d.roof==='poco'?'espacio limitado':'espacio disponible')+': la generación diurna se consume en el lugar. Un sistema bien dimensionado cubre cerca de '+pct(f)+' de tu consumo.'+(d.q.q7==='1'?' Ya lo evaluaste: lo que falta es decidir.':''),
+      'Pedí un relevamiento de techo y de curva de carga. La Ley 27.424 te permite además inyectar excedentes a la red.');
+  }
+  if(d.q.q3!=null&&d.q.q3!=='2'){
+    var nl=d.q.q3==='0'?.85:.4;
+    add('led','Pasar la iluminación a LED',sec.L*nl*.55,'Rápido','Inversión media',
+      'La iluminación pesa cerca de '+pct(sec.L)+' del consumo en tu rubro y todavía no es LED en '+(d.q.q3==='0'?'más de la mitad':'una parte')+' de tus luminarias.',
+      'Reemplazá por orden de horas de uso: naves, depósitos y exteriores primero. El LED recorta alrededor de 55% del consumo de cada luminaria.');
+  }
+  if(d.q.q4!=null&&d.q.q4!=='na'&&d.q.q4!=='2'&&sec.M>=.15){
+    var nm=d.q.q4==='0'?.7:.4;
+    add('mot','Variadores y motores de alta eficiencia',sec.M*nm*.12,'Proyecto','Inversión media',
+      'Motores, bombas y compresores concentran cerca de '+pct(sec.M)+' del consumo en tu rubro y buena parte trabaja a velocidad fija aunque la carga varíe.',
+      'Relevá los motores de más de 7,5 kW con carga variable y poné variadores donde hoy el caudal se regula con válvulas o se arranca y para.');
+  }
+  if(sec.H>=.25){
+    add('hvac','Optimizar la climatización',sec.H*.15,'Rápido','Inversión baja',
+      'La climatización pesa cerca de '+pct(sec.H)+' de tu consumo. Horarios, setpoints y filtros sucios son la fuga más barata de cerrar.',
+      'Fijá 24 °C en verano y 21 °C en invierno, programá encendido y apagado por horario y limpiá filtros y condensadores cada temporada.');
+  }
+  if(d.q.q2!=null&&d.q.q2!=='2'){
+    add('med','Medir por sector y alarmar',d.q.q2==='0'?.04:.02,'Rápido','Inversión baja',
+      d.q.q2==='0'?'Con solo la factura mensual no sabés dónde se va tu consumo. La visibilidad por sí sola suele bajarlo entre 3% y 5%.':'La lectura manual llega tarde. Con alarmas en línea cortás un desvío el mismo día en lugar de enterarte en la próxima factura.',
+      'Instalá medidores por línea o sector y un monitoreo en línea con alarmas de demanda y de consumo fuera de horario.');
+  }
+  if(d.q.q1!=null&&d.q.q1!=='2'){
+    add('ges','Designar un responsable con metas',d.q.q1==='0'?.02:.01,'Rápido','Sin inversión',
+      'Lo que nadie tiene a cargo no baja. Sin un responsable con metas, cada mejora depende de que alguien se acuerde.',
+      'Nombrá un responsable, fijá una meta anual de kWh por unidad producida o por m² y revisala todos los meses.');
+  }
+  if(d.q.q5!=null&&d.q.q5!=='2'){
+    add('man','Mantenimiento preventivo energético',d.q.q5==='0'?.02:.01,'Rápido','Inversión baja',
+      d.q.q5==='0'?'Un equipo que se arregla cuando falla consume de más durante meses antes de romperse.':'Tu preventivo existe, pero sin indicadores no sabés cuánta energía te ahorra.',
+      'Sumá a tu plan de mantenimiento tareas con impacto energético: filtros, correas, fugas de aire comprimido y aislaciones.');
+  }
+  opps.sort(function(a,b){return b.s-a.s;});
+  var tot=Math.min(1-opps.reduce(function(p,o){return p*(1-o.s);},1),.35);
+  opps.forEach(function(o){o.lo=o.s*annual*.7;o.hi=o.s*annual*1.25;});
+  return {inv:inv,sec:sec,sh:sh,kwhAvg:kwhAvg,amtAvg:amtAvg,annual:annual,unitVar:unitVar,useVar:useVar,kwMax:kwMax,lf:lf,lfRatio:lfRatio,cos:cos,util:util,
+    dims:dims,score:score,lv:levelOf(score),opps:opps,tot:tot,totLo:tot*annual*.7,totHi:tot*annual*1.25,totMid:tot*annual,contracted:d.contracted};
+}
+
+/* ---------- gráficos ---------- */
+function gauge(score,lv){
+  var cx=150,cy=138,r=108,sw=20;
+  var ang=function(p){return Math.PI+(p/100)*Math.PI;};
+  var P=function(p,rad){return [cx+rad*Math.cos(ang(p)),cy+rad*Math.sin(ang(p))];};
+  var bands=[[0,25],[25,45],[45,65],[65,83],[83,100]];
+  var s='<svg viewBox="0 0 300 176" role="img" aria-label="Puntaje de madurez energética: '+score+' de 100, nivel '+lv.n+' '+esc(lv.name)+'">';
+  bands.forEach(function(b,i){
+    var a=P(b[0]+.9,r),z=P(b[1]-.9,r);
+    s+='<path d="M'+a[0].toFixed(1)+' '+a[1].toFixed(1)+' A'+r+' '+r+' 0 0 1 '+z[0].toFixed(1)+' '+z[1].toFixed(1)+'" fill="none" stroke="var(--l'+(i+1)+')" stroke-width="'+sw+'" opacity="'+(lv.n===i+1?1:.35)+'"/>';
+  });
+  var m=P(score,r);
+  s+='<circle cx="'+m[0].toFixed(1)+'" cy="'+m[1].toFixed(1)+'" r="12" fill="var(--surface)" stroke="var(--ink)" stroke-width="3.5"/>';
+  s+='<text x="150" y="122" text-anchor="middle" class="gscore">'+score+'</text>';
+  s+='<text x="150" y="142" text-anchor="middle" class="axm">de 100</text>';
+  s+='<text x="150" y="168" text-anchor="middle" class="axm" style="font-weight:600;letter-spacing:.08em;fill:var(--ink)">NIVEL '+lv.n+' · '+esc(lv.name.toUpperCase())+'</text>';
+  return s+'</svg>';
+}
+function radar(dims){
+  var W=440,H=392,cx=220,cy=196,R=112,n=dims.length;
+  var A=function(i){return -Math.PI/2+i*2*Math.PI/n;};
+  var pt=function(i,v){return [cx+R*(v/100)*Math.cos(A(i)),cy+R*(v/100)*Math.sin(A(i))];};
+  var poly=function(vals){return vals.map(function(v,i){return pt(i,v).map(function(x){return x.toFixed(1);}).join(',');}).join(' ');};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Radar de madurez energética por dimensión">';
+  [25,50,75,100].forEach(function(r){s+='<polygon points="'+poly(dims.map(function(){return r;}))+'" fill="none" stroke="var(--line)" stroke-width="'+(r===100?1.5:1)+'"/>';});
+  dims.forEach(function(d,i){var e=pt(i,100);s+='<line x1="'+cx+'" y1="'+cy+'" x2="'+e[0].toFixed(1)+'" y2="'+e[1].toFixed(1)+'" stroke="var(--line)"/>';});
+  s+='<polygon points="'+poly(dims.map(function(){return 70;}))+'" fill="none" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 5"/>';
+  s+='<polygon points="'+poly(dims.map(function(d){return d.score;}))+'" fill="var(--accent)" fill-opacity=".22" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>';
+  dims.forEach(function(d,i){var p=pt(i,d.score);s+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>';});
+  dims.forEach(function(d,i){
+    var c=Math.cos(A(i)),sn=Math.sin(A(i)),x=cx+(R+14)*c,y=cy+(R+14)*sn;
+    var anchor=c>.25?'start':(c<-.25?'end':'middle');
+    var lines=d.name.length>12&&d.name.indexOf(' ')>0?[d.name.slice(0,d.name.lastIndexOf(' ')),d.name.slice(d.name.lastIndexOf(' ')+1)]:[d.name];
+    var y0=sn<-.5?y-(lines.length-1)*14:(sn>.5?y+10:y-(lines.length-1)*7+4);
+    s+='<text text-anchor="'+anchor+'" class="axl">';
+    lines.forEach(function(l,j){s+='<tspan x="'+x.toFixed(1)+'" y="'+(y0+j*14).toFixed(1)+'">'+esc(l)+'</tspan>';});
+    s+='</text>';
+  });
+  return s+'</svg>';
+}
+function pairBars(vals,labels,f,colors,aria){
+  var W=260,H=196,base=152,top=36,bw=78,xs=[40,142];
+  var maxV=Math.max.apply(null,vals)*1.08;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(aria)+'">';
+  s+='<line x1="18" x2="242" y1="'+base+'" y2="'+base+'" stroke="var(--line)" stroke-width="1.5"/>';
+  vals.forEach(function(v,i){
+    var h=(v/maxV)*(base-top),y=base-h;
+    s+='<rect x="'+xs[i]+'" y="'+y.toFixed(1)+'" width="'+bw+'" height="'+h.toFixed(1)+'" rx="6" fill="'+colors[i]+'"/>';
+    s+='<text x="'+(xs[i]+bw/2)+'" y="'+(y-9).toFixed(1)+'" text-anchor="middle" class="axl">'+esc(f(v))+'</text>';
+    s+='<text x="'+(xs[i]+bw/2)+'" y="'+(base+22)+'" text-anchor="middle" class="axm">'+esc(labels[i])+'</text>';
+  });
+  return s+'</svg>';
+}
+
+/* ---------- resultados ---------- */
+function deltaPill(x,badUp){
+  var up=x>0,txt=(up?'+':'')+fmt(x*100,1)+'%';
+  if(Math.abs(x)<.005)return '<span class="pill">sin cambios</span>';
+  var bad=badUp?up:!up;
+  return '<span class="pill '+(bad?'bad':'good')+'">'+txt+'</span>';
+}
+function kpiTiles(r){
+  var t=[];
+  t.push('<div class="kpi"><span class="eyebrow">Consumo promedio</span><span class="v">'+fmt(r.kwhAvg)+' kWh</span><span class="s">por mes · '+deltaPill(r.useVar,false)+' por día vs. período anterior</span></div>');
+  t.push('<div class="kpi"><span class="eyebrow">Costo medio</span><span class="v">$ '+fmt(r.inv[1].unit)+'/kWh</span><span class="s">'+deltaPill(r.unitVar,true)+' vs. período anterior</span></div>');
+  t.push('<div class="kpi"><span class="eyebrow">Factura anual proyectada</span><span class="v">'+compact(r.annual)+'</span><span class="s">promedio de tus dos facturas × 12</span></div>');
+  if(Number.isFinite(r.cos))t.push('<div class="kpi"><span class="eyebrow">Factor de potencia</span><span class="v">'+fmt(r.cos,2)+'</span><span class="s">'+(r.cos>=.95?'<span class="pill good">en objetivo</span> objetivo 0,95':(r.cos<.85?'<span class="pill bad">penalizado</span> mínimo 0,85':'<span class="pill bad">bajo objetivo</span> objetivo 0,95'))+'</span></div>');
+  if(Number.isFinite(r.lf))t.push('<div class="kpi"><span class="eyebrow">Factor de carga</span><span class="v">'+fmt(r.lf,2)+'</span><span class="s">esperable para tu régimen: '+fmt(r.sh.lf,2)+' · '+(r.lfRatio>=.85?'<span class="pill good">sano</span>':'<span class="pill bad">bajo</span>')+'</span></div>');
+  if(Number.isFinite(r.util))t.push('<div class="kpi"><span class="eyebrow">Uso de potencia contratada</span><span class="v">'+pct(r.util)+'</span><span class="s">'+fmt(r.kwMax)+' kW máx. de '+fmt(r.contracted)+' kW · '+(r.util<.75?'<span class="pill bad">sobredimensionada</span>':(r.util>1?'<span class="pill bad">con excesos</span>':'<span class="pill good">ajustada</span>'))+'</span></div>');
+  return t.join('');
+}
+function summaryText(d,r){
+  var L=['Autodiagnóstico energético · '+d.name,'Nivel '+r.lv.n+' de 5 ('+r.lv.name+') · '+r.score+'/100','Factura anual proyectada: '+compact(r.annual)];
+  if(r.opps.length)L.push('Ahorro estimado: '+range(r.totLo,r.totHi)+' por año','','Oportunidades:');
+  r.opps.slice(0,6).forEach(function(o,i){L.push((i+1)+'. '+o.title+' — '+range(o.lo,o.hi)+' por año');});
+  L.push('','Estimación preliminar; se confirma con medición en sitio.');
+  return L.join('\n');
+}
+function render(d,r,isExample){
+  var el=$('#results'),top=r.opps[0],weak=r.dims.slice().sort(function(a,b){return a.score-b.score;})[0];
+  var hasSave=r.opps.length&&r.tot>=.02;
+  var maxHi=r.opps.length?r.opps[0].hi:1;
+  var h='';
+  if(!isExample)h+='<div class="sendbar" id="sendbar" role="status" aria-live="polite"></div>';
+  if(isExample)h+='<div class="banner"><span>Estás viendo un ejemplo con datos de muestra, no tus cifras.</span><button class="btn sm" type="button" id="btnMine">Cargar los datos de mi empresa</button></div>';
+
+  var headline=hasSave
+    ?'Estás en nivel '+r.lv.n+' de 5 y dejás sobre la mesa entre '+range(r.totLo,r.totHi)+' por año'
+    :'Estás en nivel '+r.lv.n+' de 5 y tu gestión está cerca de su techo';
+  var lever=hasSave?'La mayor palanca es “'+esc(top.title.toLowerCase())+'”: '+range(top.lo,top.hi)+' por año. '+(weak&&weak.score<67?'Tu punto más débil es '+esc(weak.name.toLowerCase())+' ('+weak.score+' de 100).':'')
+    :'Con los datos cargados no aparecen palancas relevantes. El margen que queda es de optimización fina y de certificación.';
+  var cmpNow=100,cmpPlan=hasSave?100*(1-r.tot):100;
+  h+='<div class="verdict"><div class="card gcard">'+gauge(r.score,r.lv)+'<p class="hint">Puntaje de madurez energética de '+esc(d.name)+'</p></div>'
+    +'<div class="card vtext"><div><p class="eyebrow">Veredicto · '+esc(r.sec.n)+'</p></div><h1>'+headline+'</h1>'
+    +'<p>'+esc(r.lv.line)+'</p><p>'+lever+'</p>'
+    +(hasSave?'<div class="save"><span class="save-num">'+range(r.totLo,r.totHi)+'</span><span class="save-cap">por año, entre '+pct(r.tot*.7,0)+' y '+pct(Math.min(r.tot*1.25,.5),0)+' de tu factura. El total ya descuenta la superposición entre medidas.</span></div>'
+    +'<div class="cmp"><div class="cmp-r"><span class="k">Hoy</span><div class="trk"><i style="width:100%;background:var(--blue)"></i></div><b>'+compact(r.annual)+'</b></div>'
+    +'<div class="cmp-r"><span class="k">Con plan</span><div class="trk"><i style="width:'+cmpPlan.toFixed(1)+'%;background:var(--accent)"></i></div><b>'+compact(r.annual-r.totMid)+'</b></div></div>':'')
+    +'</div></div>';
+
+  h+='<section><div class="sec-h"><h2>Tus números, de un vistazo</h2><p>Calculados con tus dos facturas.</p></div><div class="kpis">'+kpiTiles(r)+'</div>';
+  if(!Number.isFinite(r.kwMax)&&!Number.isFinite(r.cos))h+='<div class="callout" style="margin-top:12px">No cargaste potencia (kW) ni factor de potencia. Si tu factura los informa, sumalos y el diagnóstico de demanda y de reactiva gana precisión.</div>';
+  h+='</section>';
+
+  h+='<section><div class="sec-h"><h2>Madurez por dimensión</h2><p>La línea punteada marca el nivel Gestionado (70 puntos). Todo lo que queda adentro es brecha.</p></div>'
+    +'<div class="split"><div class="card radar">'+radar(r.dims)+'<div class="legend"><span><i></i>'+esc(d.name)+'</span><span><i class="ref"></i>Referencia nivel Gestionado</span></div></div>'
+    +'<div class="card dims">';
+  r.dims.forEach(function(x){
+    var tg=x.score<34?'Brecha crítica':(x.score<67?'En desarrollo':'Fortaleza');
+    h+='<div class="dim"><div class="dim-h"><b>'+esc(x.name)+'</b><span>'+x.score+'/100 · '+tg+'</span></div><div class="trk"><i style="width:'+x.score+'%;background:'+lvColor(x.score)+'"></i></div><span class="what">'+WHAT[x.k]+'</span></div>';
+  });
+  h+='</div></div></section>';
+
+  var i0=r.inv[0],i1=r.inv[1];
+  h+='<section><div class="sec-h"><h2>Qué pasó entre tus dos facturas</h2><p>'
+    +(r.unitVar>0.005?'Tu costo por kWh subió '+fmt(r.unitVar*100,1)+'% en un período: pagás más por cada unidad aunque consumas parecido. ':(r.unitVar<-0.005?'Tu costo por kWh bajó '+fmt(-r.unitVar*100,1)+'% en un período. ':'Tu costo por kWh se mantuvo estable. '))
+    +(Math.abs(r.useVar)>=.05?'El consumo diario '+(r.useVar>0?'subió ':'bajó ')+fmt(Math.abs(r.useVar)*100,1)+'%.':'El consumo diario casi no se movió.')+'</p></div>'
+    +'<div class="card inv-charts"><div class="ichart"><h3>Consumo diario (kWh/día)</h3>'
+    +pairBars([i0.perDay,i1.perDay],[periodLabel(i0.period),periodLabel(i1.period)],function(v){return fmt(v);},['var(--blue)','var(--accent)'],'Consumo diario por período')+'</div>'
+    +'<div class="ichart"><h3>Costo medio ($/kWh)</h3>'
+    +pairBars([i0.unit,i1.unit],[periodLabel(i0.period),periodLabel(i1.period)],function(v){return '$ '+fmt(v);},['var(--blue)','var(--accent)'],'Costo medio por kWh por período')+'</div></div></section>';
+
+  if(r.opps.length){
+    h+='<section><div class="sec-h"><h2>Oportunidades de ahorro, de mayor a menor</h2><p>Las barras muestran el rango estimado por año. Abrí cada una para ver por qué aparece y qué hacer.</p></div><div class="opps">';
+    r.opps.forEach(function(o,i){
+      var wHi=(o.hi/maxHi*100),wLo=(o.lo/maxHi*100);
+      h+='<details class="opp"'+(i===0?' open':'')+'><summary><span class="rank">'+(i+1)+'</span><span class="mid"><span class="tt">'+esc(o.title)+'</span>'
+        +'<span class="tags"><span class="tag'+(o.plazo==='Rápido'?' fast':'')+'">'+(o.plazo==='Rápido'?'Rápido · 0–3 meses':'Proyecto · 3–12 meses')+'</span><span class="tag">'+o.inversion+'</span></span>'
+        +'<span class="obar"><i class="ext" style="width:'+wHi.toFixed(1)+'%"></i><i style="width:'+wLo.toFixed(1)+'%"></i></span></span>'
+        +'<span class="amt">'+range(o.lo,o.hi)+'<small>por año<span class="chev"></span></small></span></summary>'
+        +'<div class="obody"><p>'+o.why+'</p><p><strong>Qué hacer:</strong> '+o.action+'</p></div></details>';
+    });
+    h+='</div></section>';
+
+    var order=r.opps.slice().sort(function(a,b){var ra=a.plazo==='Rápido'?0:1,rb=b.plazo==='Rápido'?0:1;return ra-rb||b.s-a.s;}).slice(0,3);
+    h+='<section><div class="sec-h"><h2>Tu plan para los próximos 3 meses</h2><p>Se ordena para arrancar por lo que se cobra más rápido.</p></div><ol class="plan">';
+    order.forEach(function(o,i){h+='<li><span class="eyebrow">Mes '+(i+1)+'</span><h3>'+esc(o.title)+'</h3><p>'+o.action+'</p></li>';});
+    h+='</ol></section>';
+  }
+
+  h+='<section class="cta"><h2>Convertí este diagnóstico en un ahorro medido</h2><p>Estas cifras son una estimación con valores típicos de tu rubro. Un ingeniero de Baires Energía recibe tu diagnóstico, lo valida con tu curva de carga y te entrega el proyecto con retorno de inversión calculado.</p>'
+    +'<div class="row"><a class="btn on-accent" href="https://www.bairesenergia.com.ar" target="_blank" rel="noopener">Conocer Baires Energía</a><button class="btn ghost" type="button" id="btnCopy">Copiar resumen</button><button class="btn ghost" type="button" id="btnEdit">Editar mis datos</button></div></section>';
+
+  h+='<details class="method"><summary>Cómo se calcula</summary><ul>'
+    +'<li>El puntaje (0 a 100) pondera siete dimensiones. Seis salen de tus respuestas y la calidad de demanda sale de tus facturas (factor de potencia y factor de carga).</li>'
+    +'<li>Niveles: Reactivo hasta 24, Consciente hasta 44, Organizado hasta 64, Gestionado hasta 82 y Estratégico desde 83.</li>'
+    +'<li>Cada oportunidad aplica un porcentaje típico sobre tu factura anual proyectada (promedio de las dos facturas por 12) y muestra un rango de 70% a 125% de esa estimación.</li>'
+    +'<li>Las medidas se superponen: el total combina los porcentajes sin sumarlos y tiene un tope de 35% de la factura.</li>'
+    +'<li>La estacionalidad no está incluida. Con dos facturas el resultado es orientativo; la medición en sitio lo confirma.</li></ul></details>';
+
+  el.innerHTML=h;
+  el.hidden=false;$('#wizard').hidden=true;$('#hero').hidden=true;
+  var edit=$('#btnEdit'),mine=$('#btnMine'),copy=$('#btnCopy');
+  if(edit)edit.onclick=function(){backToForm(false);};
+  if(mine)mine.onclick=function(){backToForm(true);};
+  if(copy)copy.onclick=function(){copyText(summaryText(d,r),copy);};
+  window.scrollTo(0,0);
+}
+function backToForm(reset){
+  if(reset)resetAll();
+  $('#results').hidden=true;$('#hero').hidden=false;$('#wizard').hidden=false;
+  setStep(reset?1:3);
+}
+function resetAll(){
+  $$('#wizard input[type="text"],#wizard input[type="month"],#wizard input[type="email"],#wizard input[type="tel"],#wizard select').forEach(function(e){e.value='';e.classList.remove('filled');});
+  $$('#wizard input[type="radio"],#wizard input[type="checkbox"]').forEach(function(e){e.checked=false;});
+  $$('.err').forEach(function(e){e.textContent='';});
+  clearPrev(1);clearPrev(2);
+}
+async function copyText(t,btn){
+  try{await navigator.clipboard.writeText(t);btn.textContent='Copiado';}
+  catch(_){
+    var ta=document.createElement('textarea');ta.value=t;ta.readOnly=true;ta.className='fallback';
+    btn.parentNode.appendChild(ta);ta.focus();ta.select();btn.textContent='Seleccioná el texto y copiá';
+  }
+}
+
+/* ---------- asistente ---------- */
+var step=1;
+function setStep(n){
+  step=n;
+  $$('.step').forEach(function(s){s.hidden=(+s.getAttribute('data-step')!==n);});
+  $$('#steps li').forEach(function(li,i){li.setAttribute('data-state',i+1===n?'current':(i+1<n?'done':'todo'));});
+  var w=$('#wizard');if(w&&w.scrollIntoView)w.scrollIntoView({block:'start'});
+}
+function setErr(id,msg){var e=$('#e-'+id);if(e){e.textContent=msg||'';}var i=$('#'+id);if(i){i.setAttribute('aria-invalid',msg?'true':'false');}}
+function validate(n){
+  var bad=[];
+  var need=function(id,msg){setErr(id,msg);if(msg)bad.push(id);};
+  if(n===1){
+    need('name',val('name').trim()?'':'Escribí el nombre de tu empresa.');
+    need('sector',val('sector')?'':'Elegí un rubro.');
+    need('shift',radio('shift')?'':'Elegí cómo opera tu empresa.');
+    need('roof',radio('roof')?'':'Elegí una opción.');
+  }
+  if(n===2){
+    [1,2].forEach(function(i){
+      need('per'+i,normPeriod(val('per'+i))?'':'Indicá el mes del consumo.');
+      var k=parseAR(val('kwh'+i));need('kwh'+i,k>0?'':'Ingresá el consumo en kWh.');
+      var a=parseAR(val('amt'+i));need('amt'+i,a>0?'':'Ingresá el total a pagar.');
+      var kw=val('kw'+i).trim();need('kw'+i,(!kw||parseAR(kw)>0)?'':'Ingresá un número mayor a 0.');
+      var c=val('cos'+i).trim();var cv=parseAR(c);need('cos'+i,(!c||(cv>=.3&&cv<=1))?'':'Usá un valor entre 0,30 y 1,00.');
+    });
+    var p1=normPeriod(val('per1')),p2=normPeriod(val('per2'));
+    if(p1&&p2&&p1===p2)need('per2','Cargá dos períodos distintos.');
+    var c2=val('contr').trim();need('contr',(!c2||parseAR(c2)>0)?'':'Ingresá un número mayor a 0.');
+  }
+  if(n===3){
+    ['q1','q2','q3','q4','q5','q6','q7'].forEach(function(q){need(q,radio(q)?'':'Elegí una opción.');});
+    need('cname',val('cname').trim()?'':'Escribí tu nombre.');
+    need('cmail',/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val('cmail').trim())?'':'Ingresá un email válido.');
+    need('consent',$('#consent').checked?'':'Necesitamos tu autorización para enviar el diagnóstico.');
+  }
+  if(bad.length){var f=$('#'+bad[0])||$('#e-'+bad[0]);if(f&&f.scrollIntoView){f.scrollIntoView({block:'center'});if(f.focus)f.focus({preventScroll:true});}}
+  return bad.length===0;
+}
+$$('[data-next]').forEach(function(b){b.onclick=function(){if(validate(step))setStep(+b.getAttribute('data-next'));};});
+$$('[data-prev]').forEach(function(b){b.onclick=function(){setStep(+b.getAttribute('data-prev'));};});
+$('#btnGo').onclick=function(){
+  if(!validate(1)){setStep(1);return;}
+  if(!validate(2)){setStep(2);return;}
+  if(!validate(3))return;
+  var d=readInputs(),r=compute(d);render(d,r,false);sendResult(d,r);
+};
+/* limpia el error al corregir */
+document.addEventListener('input',function(e){var t=e.target;if(t&&t.id){var er=$('#e-'+t.id);if(er)er.textContent='';}if(t&&t.name){var er2=$('#e-'+t.name);if(er2)er2.textContent='';}});
+
+/* ---------- ejemplo ---------- */
+function setV(id,v){var e=$('#'+id);if(e)e.value=v;}
+function setR(n,v){var e=$('input[name="'+n+'"][value="'+v+'"]');if(e)e.checked=true;}
+$('#btnExample').onclick=function(){
+  resetAll();
+  setV('name','Metalúrgica Ejemplo S.A.');setV('sector','industria');setR('shift','2');setR('roof','si');
+  setV('per1','2026-08');setV('kwh1','61.200');setV('amt1','11.630.000');setV('kw1','230');setV('cos1','0,88');
+  setV('per2','2026-09');setV('kwh2','64.800');setV('amt2','12.820.000');setV('kw2','240');setV('cos2','0,86');setV('contr','340');
+  setR('q1','1');setR('q2','0');setR('q3','1');setR('q4','1');setR('q5','1');setR('q6','1');setR('q7','0');
+  var d=readInputs();render(d,compute(d),true);
+};
+
+/* ---------- envío del resultado por correo (FormSubmit) ---------- */
+var TO='marcelo.espeche@bairesenergia.com.ar';
+function chipText(q){var e=$('input[name="'+q+'"]:checked+span');return e?e.textContent:'-';}
+function buildPayload(d,r){
+  var p={_subject:'Autodiagnóstico energético · '+d.name,_template:'table',_captcha:'false',_honey:'',
+    email:d.contact.mail,Contacto:d.contact.name,Telefono:d.contact.phone||'-',Empresa:d.name,Rubro:r.sec.n,
+    Regimen:r.sh.t,'Espacio para solar':d.roof==='si'?'Sí, bastante':(d.roof==='poco'?'Limitado':'No tiene'),
+    Puntaje:r.score+'/100',Nivel:r.lv.n+' - '+r.lv.name,
+    'Factura anual proyectada':compact(r.annual),
+    'Ahorro estimado por año':r.opps.length?range(r.totLo,r.totHi):'sin palancas relevantes'};
+  r.inv.forEach(function(x,k){
+    var n='Factura '+(k+1)+' ';
+    p[n+'período']=periodLabel(x.period);p[n+'kWh']=fmt(x.kwh);p[n+'total $']=fmt(x.amount);
+    p[n+'kW máx']=Number.isFinite(x.kw)?fmt(x.kw):'-';p[n+'cos φ']=Number.isFinite(x.cos)?fmt(x.cos,2):'-';
+  });
+  p['Potencia contratada kW']=Number.isFinite(d.contracted)?fmt(d.contracted):'-';
+  r.dims.forEach(function(x){p['Dimensión '+x.name]=x.score+'/100';});
+  p['Prácticas']=['q1','q2','q3','q4','q5','q6','q7'].map(function(q,i){return (i+1)+'. '+chipText(q);}).join(' | ');
+  p['Oportunidades']=r.opps.map(function(o,i){return (i+1)+'. '+o.title+' — '+range(o.lo,o.hi)+' por año';}).join('\n')||'-';
+  return p;
+}
+function mailtoLink(d,r){
+  var body=summaryText(d,r)+'\n\nContacto: '+d.contact.name+' · '+d.contact.mail+(d.contact.phone?' · '+d.contact.phone:'');
+  return 'mailto:'+TO+'?subject='+encodeURIComponent('Autodiagnóstico energético · '+d.name)+'&body='+encodeURIComponent(body.slice(0,1800));
+}
+async function sendResult(d,r){
+  var bar=$('#sendbar');if(!bar)return;
+  bar.className='sendbar';bar.textContent='Enviando tu diagnóstico a Baires Energía…';
+  try{
+    var res=await fetch('https://formsubmit.co/ajax/'+TO,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(buildPayload(d,r))});
+    var j=await res.json().catch(function(){return {};});
+    if(!(res.ok&&(j.success===true||j.success==='true')))throw new Error('send');
+    bar.className='sendbar ok';
+    bar.innerHTML='<span><b>Diagnóstico enviado.</b> Un ingeniero de Baires Energía te escribe a '+esc(d.contact.mail)+'.</span>';
+  }catch(_){
+    bar.className='sendbar err';
+    bar.innerHTML='<span><b>No pudimos enviar el diagnóstico.</b> Tu resultado está acá abajo igual.</span><button class="btn sm" type="button" id="btnRetry">Reintentar</button><a href="'+mailtoLink(d,r)+'">Enviarlo desde tu correo</a>';
+    $('#btnRetry').onclick=function(){sendResult(d,r);};
+  }
+}
+
+/* ---------- factura adjunta: solo vista previa local ---------- */
+var urls={1:null,2:null};
+function clearPrev(i){
+  if(urls[i]){try{URL.revokeObjectURL(urls[i]);}catch(_){}urls[i]=null;}
+  var pv=$('#prev'+i);pv.hidden=true;pv.classList.remove('zoom');$('#img'+i).removeAttribute('src');
+  var z=$('[data-zoom="'+i+'"]');if(z)z.textContent='Ampliar';
+}
+[1,2].forEach(function(i){
+  var f=$('#file'+i);
+  f.onchange=function(){
+    var file=f.files&&f.files[0];f.value='';
+    if(!file)return;
+    if(!/^image\//.test(file.type)){$('#pn'+i).textContent='Adjuntá una imagen (JPG o PNG). Si tu factura es un PDF, sacale una captura.';$('#prev'+i).hidden=false;$('#img'+i).removeAttribute('src');return;}
+    clearPrev(i);
+    urls[i]=URL.createObjectURL(file);
+    $('#img'+i).src=urls[i];$('#pn'+i).textContent=file.name;$('#prev'+i).hidden=false;
+  };
+});
+$$('[data-clear]').forEach(function(b){b.onclick=function(){clearPrev(+b.getAttribute('data-clear'));};});
+$$('[data-zoom]').forEach(function(b){b.onclick=function(){var i=b.getAttribute('data-zoom'),pv=$('#prev'+i);var on=pv.classList.toggle('zoom');b.textContent=on?'Reducir':'Ampliar';};});
+})();
+</script>
+
+</body>
+</html>
